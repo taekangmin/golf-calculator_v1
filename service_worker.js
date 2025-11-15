@@ -1,9 +1,12 @@
 const CACHE_NAME = 'golf-calculator-v1';
+
+// 현재 경로를 기준으로 상대 경로 설정
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/cd5cc840-4fba-47c4-b991-226ea22f2891.png',
-  '/image (2).png'
+  './',
+  './index.html',
+  './manifest.json',
+  './cd5cc840-4fba-47c4-b991-226ea22f2891.png',
+  './image (2).png'
 ];
 
 // 설치 단계: 필요한 리소스 캐시
@@ -14,7 +17,12 @@ self.addEventListener('install', event => {
         console.log('캐시 열림');
         return cache.addAll(urlsToCache);
       })
+      .catch(err => {
+        console.error('캐시 실패:', err);
+      })
   );
+  // 즉시 활성화
+  self.skipWaiting();
 });
 
 // 활성화 단계: 오래된 캐시 정리
@@ -31,6 +39,8 @@ self.addEventListener('activate', event => {
       );
     })
   );
+  // 즉시 제어 시작
+  return self.clients.claim();
 });
 
 // Fetch 단계: 네트워크 우선, 실패 시 캐시 사용
