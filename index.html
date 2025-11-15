@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#3e6bff" />
+<meta name="description" content="골프 클럽 선택을 도와주는 계산기 - 고저차, 풍속, 라이 조건을 고려한 정확한 클럽 추천" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="cd5cc840-4fba-47c4-b991-226ea22f2891.png" />
+<title>골프 클럽 계산기</title>
+<style>
+:root{
+  --bg:#f2f5f9;
+  --card:#f8fafc;
+  --muted:#9aa6bf;
+  --accent:#3e6bff;
+  --accent-dark:#2a4fcc;
+  --red:#ff4d4d;
+  --blue:#3a86ff;
+  --glass: rgba(255,255,255,0.6);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard","Apple SD Gothic Neo","Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: var(--bg);
+  -webkit-font-smoothing:antialiased;
+  padding:16px;
+  background-image: url('image (2).png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+}
+body::before{
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(242,245,249,0.75);
+  backdrop-filter: blur(8px);
+  z-index: -1;
+}
+.app-shell{max-width:920px;margin:0 auto;}
+.app-header{
+  display:flex;align-items:center;gap:12px;margin-bottom:14px;
+  padding:8px 12px;border-radius:14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
+  box-shadow: 8px 8px 16px rgba(210,215,222,0.8), -8px -8px 16px #ffffff;
+}
+.app-icon{
+  width:60px;
+  height:60px;
+  border-radius:12px;
+  object-fit:contain;
+  padding:6px;
+  background:#fff;
+  box-shadow: 4px 4px 8px rgba(0,0,0,0.1);
+}
+.app-title{font-size:20px;color:var(--accent);font-weight:700}
+.main-area{display:flex;flex-direction:column;gap:16px;padding-bottom:40px}
+.card{background:var(--card);border-radius:16px;padding:16px;box-shadow:8px 8px 20px rgba(210,215,222,0.9), -8px -8px 20px #ffffff;}
+.inputs-card{display:flex;flex-direction:column;gap:12px;}
+
+.input-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+}
+
+.field{
+  display:flex;
+  flex-direction:column;
+}
+
+.env-section{
+  padding:14px;
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
+  box-shadow:inset 4px 4px 8px rgba(208,213,219,0.6), inset -4px -4px 8px #ffffff;
+}
+
+.env-section-title{
+  font-size:13px;
+  color:var(--muted);
+  margin-bottom:10px;
+  font-weight:600;
+  text-align:center;
+}
+
+.label{font-size:13px;margin-bottom:6px;color:#425273;font-weight:600;display:block}
+
+input[type=number], .full-select, .small-select{
+  width:100%;padding:12px;border-radius:12px;border:none;background:#eef1f6;box-shadow:inset 4px 4px 8px #d0d5db, inset -4px -4px 8px #ffffff;font-size:15px;
+}
+.small-select{width:120px}
+.full-select{width:100%}
+
+/* 고저차 슬라이더 */
+.elev-slider-wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  margin-top:8px;
+}
+
+.elev-slider{
+  appearance:none;
+  width:100%;
+  height:12px;
+  border-radius:12px;
+  background: linear-gradient(90deg, #3a86ff 0%, #3a86ff 50%, #ff4d4d 50%, #ff4d4d 100%);
+  outline:none;
+  position:relative;
+}
+
+.elev-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  height:24px;
+  width:24px;
+  border-radius:50%;
+  background:linear-gradient(145deg,#fff,#eef4ff);
+  box-shadow:3px 3px 8px rgba(0,0,0,0.15), -2px -2px 6px rgba(255,255,255,0.8);
+  cursor:pointer;
+  border:2px solid #fff;
+}
+
+.elev-slider::-moz-range-thumb{
+  height:24px;
+  width:24px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:3px 3px 8px rgba(0,0,0,0.15);
+  cursor:pointer;
+  border:2px solid #fff;
+}
+
+.elev-value{
+  font-weight:700;
+  padding:8px 14px;
+  border-radius:12px;
+  background:var(--glass);
+  box-shadow:6px 6px 12px rgba(205,211,219,0.8), -6px -6px 12px #ffffff;
+  color:#333;
+  min-width:80px;
+  text-align:center;
+}
+
+/* 풍속 슬라이더 */
+.wind-slider-wrap{
+  margin-top:8px;
+}
+
+.wind-slider{
+  width:100%;
+  height:12px;
+  appearance:none;
+  border-radius:12px;
+  background:#e6eef9;
+  outline:none;
+}
+
+.wind-slider::-webkit-slider-runnable-track{
+  height:12px;
+  border-radius:12px;
+  background:linear-gradient(90deg,#ffffff 0%,#cfe0ff 100%);
+}
+
+.wind-slider::-moz-range-track{
+  height:12px;
+  border-radius:12px;
+  background:linear-gradient(90deg,#ffffff 0%,#cfe0ff 100%);
+}
+
+.wind-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  height:24px;
+  width:24px;
+  border-radius:50%;
+  background:linear-gradient(145deg,#fff,#eef4ff);
+  box-shadow:3px 3px 8px rgba(0,0,0,0.15), -2px -2px 6px rgba(255,255,255,0.8);
+  cursor:pointer;
+  border:2px solid #fff;
+  margin-top:-6px;
+}
+
+.wind-slider::-moz-range-thumb{
+  height:24px;
+  width:24px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:3px 3px 8px rgba(0,0,0,0.15);
+  cursor:pointer;
+  border:2px solid #fff;
+}
+
+.wind-info{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:10px;
+}
+
+.wind-value{
+  font-weight:700;
+  color:#10316b;
+  padding:6px 12px;
+  border-radius:8px;
+  background:rgba(255,255,255,0.5);
+  box-shadow:3px 3px 6px rgba(205,211,219,0.6);
+}
+
+.wind-direction-controls{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:12px;
+}
+
+.wind-checkbox{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:rgba(255,255,255,0.4);
+  box-shadow:3px 3px 6px rgba(205,211,219,0.5);
+  cursor:pointer;
+  transition:all 0.2s;
+}
+
+.wind-checkbox:hover{
+  background:rgba(255,255,255,0.6);
+  box-shadow:4px 4px 8px rgba(205,211,219,0.6);
+}
+
+.wind-checkbox input[type="checkbox"]{
+  width:20px;
+  height:20px;
+  cursor:pointer;
+  accent-color:var(--accent);
+}
+
+.wind-checkbox span{
+  font-size:14px;
+  font-weight:600;
+  color:#425273;
+}
+
+.hint{font-size:11px;color:var(--muted);margin-top:6px;text-align:center}
+
+.row{display:flex;gap:8px}
+.gap{gap:10px}
+.button{border:none;padding:12px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:6px 6px 12px rgba(184,192,208,0.6), -6px -6px 12px #ffffff;transition:all 0.2s}
+.button.primary{background:linear-gradient(145deg,var(--accent),var(--accent-dark));color:#fff}
+.button.outline{background:transparent;border:1px solid rgba(66,82,115,0.06);color:var(--accent);}
+.button:active{transform:scale(0.98)}
+
+.club-display{
+  margin:12px 0;
+  padding:12px;
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
+  box-shadow:inset 4px 4px 8px rgba(208,213,219,0.6), inset -4px -4px 8px #ffffff;
+  min-height:80px;
+}
+.club-display-title{
+  font-size:13px;
+  color:var(--muted);
+  margin-bottom:8px;
+  font-weight:600;
+}
+.club-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.club-chip{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 12px;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:3px 3px 6px rgba(210,215,222,0.7), -3px -3px 6px #ffffff;
+  font-size:13px;
+  font-weight:600;
+  color:#425273;
+}
+.club-chip-name{
+  color:var(--accent);
+  margin-right:6px;
+}
+.club-empty{
+  color:var(--muted);
+  font-size:13px;
+  text-align:center;
+  padding:20px;
+}
+
+.result-card{overflow:hidden;min-height:120px;transition:transform .28s ease,opacity .28s ease;opacity:0;transform:translateY(8px) scale(.995);display:none}
+.result-card.show{opacity:1;transform:translateY(0) scale(1);display:block}
+.result-content{display:flex;gap:12px;align-items:center}
+.result-summary{flex:1;padding:12px}
+.res-line{margin:8px 0;font-size:14px;line-height:1.6}
+.res-line strong{color:var(--accent)}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);padding:18px;z-index:1000}
+.modal[aria-hidden="false"], .modal.show{display:flex}
+.modal-card{width:100%;max-width:640px;background:var(--card);border-radius:14px;padding:18px;box-shadow:8px 8px 20px rgba(210,215,222,0.9), -8px -8px 20px #ffffff;position:relative;max-height:80vh;overflow-y:auto}
+.modal-close{position:absolute;right:12px;top:12px;border:none;background:transparent;font-size:20px;cursor:pointer;color:#666}
+.modal-close:hover{color:#000}
+.modal-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.modal-icon{width:44px;height:44px}
+.modal-sub{color:var(--muted);margin-top:6px;margin-bottom:10px;font-size:13px}
+.club-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.club-grid>div{display:flex;flex-direction:column;gap:4px}
+.club-grid label{font-size:13px;color:#2a3b66;font-weight:600}
+.club-grid input{padding:10px;border-radius:10px;border:none;background:#eef1f6;box-shadow:inset 4px 4px 8px #d0d5db,inset -4px -4px 8px #ffffff}
+.modal-actions{display:flex;gap:10px;margin-top:12px;justify-content:flex-end}
+
+@media (max-width:720px){
+  .input-grid{grid-template-columns:1fr}
+  .result-content{flex-direction:column}
+  .club-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header">
+    <img src="cd5cc840-4fba-47c4-b991-226ea22f2891.png" alt="golf icon" class="app-icon" />
+    <div class="app-title">골프 클럽 계산기</div>
+  </header>
+
+  <main class="main-area">
+    <section class="card inputs-card">
+      <div class="input-grid">
+        <div class="field">
+          <label class="label">목표 거리 (m)</label>
+          <input id="tgt" type="number" placeholder="예: 150" inputmode="decimal" />
+        </div>
+
+        <div class="env-section">
+          <div class="env-section-title">🌡️ 고저차</div>
+          <div class="elev-slider-wrap">
+            <input id="elev" class="elev-slider" type="range" min="-20" max="20" step="0.1" value="0" />
+            <div class="elev-value" id="elevValue">0.0 m</div>
+          </div>
+          <div class="hint">← 하강 (파란색) | 상승 (빨간색) →</div>
+        </div>
+      </div>
+
+      <div class="env-section">
+        <div class="env-section-title">💨 풍속 & 풍향</div>
+        <div class="wind-slider-wrap">
+          <input id="wind" class="wind-slider" type="range" min="0" max="8" step="0.1" value="0" />
+        </div>
+        <div class="wind-info">
+          <div class="wind-value" id="windValue">0.0 m/s</div>
+        </div>
+        <div class="wind-direction-controls">
+          <label class="wind-checkbox">
+            <input type="checkbox" id="headwind" />
+            <span>맞바람(역풍)</span>
+          </label>
+          <label class="wind-checkbox">
+            <input type="checkbox" id="tailwind" />
+            <span>뒷바람(순풍)</span>
+          </label>
+          <label class="wind-checkbox">
+            <input type="checkbox" id="crosswind" />
+            <span>옆바람</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="club-display">
+        <div class="club-display-title">⛳ 입력된 클럽 거리</div>
+        <div class="club-chips" id="clubChips">
+          <div class="club-empty">클럽 거리를 입력하면 여기에 표시됩니다</div>
+        </div>
+      </div>
+
+      <div class="input-grid">
+        <div class="field">
+          <label class="label">라이</label>
+          <select id="lie" class="full-select">
+            <option>페어웨이</option><option>러프</option><option>벙커</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="label">핀 위치</label>
+          <select id="pin" class="full-select">
+            <option>앞핀</option><option selected>중앙</option><option>뒷핀</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <button id="openClubBtn" class="button outline">클럽 거리 입력</button>
+        <button id="calcBtn" class="button primary">계산하기</button>
+      </div>
+    </section>
+
+    <section class="card result-card" id="resultCard" aria-hidden="true">
+      <div id="resultContent" class="result-content">
+        <div class="result-left">
+          <div id="resultSummary" class="result-summary">추천 결과가 여기 표시됩니다.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="clubModal" class="modal" aria-hidden="true">
+  <div class="modal-card">
+    <button id="modalClose" class="modal-close" aria-label="닫기">✕</button>
+    <div class="modal-header">
+      <img src="cd5cc840-4fba-47c4-b991-226ea22f2891.png" alt="golf icon" class="modal-icon" />
+      <h3>클럽별 거리 입력</h3>
+    </div>
+    <p class="modal-sub">사용하는 클럽의 평균 비거리를 입력하세요. 비워두면 추천 후보에서 제외됩니다.</p>
+
+    <div class="club-grid" id="clubInputs"></div>
+
+    <div class="modal-actions">
+      <button id="saveClubs" class="button primary">저장</button>
+      <button id="closeModal" class="button outline">취소</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Logic and UI glue
+const clubs = ["Driver","3W","5W","7W","3I","4I","5I","6I","7I","8I","9I","PW","AW","SW"];
+let clubDistances = {};
+clubs.forEach(c => clubDistances[c] = null);
+const lieMultiplier = {"페어웨이":1.0,"러프":1.10,"벙커":1.20};
+const pinAdjust = {"앞핀":2.0,"중앙":0.0,"뒷핀":-2.0};
+
+// 현실적인 고저차 보정 공식
+// 연구 결과: 1m 상승 시 약 1.05m 짧게, 1m 하강 시 약 0.90m 길게 플레이됨
+function elevation_delta(e, lie){
+  if (e >= 0){
+    // 상승: 고저차의 약 105%가 추가 거리로 필요
+    return e * 1.05;
+  } else {
+    // 하강: 고저차의 약 90%만큼 거리 감소
+    // 라이에 따라 런 거리 차이 반영
+    const lieRunFactor = {"페어웨이":0.90, "러프":0.95, "벙커":1.00};
+    return e * (lieRunFactor[lie] || 0.90);
+  }
+}
+
+function compute_corrected_distance(target, elev, wind_speed, isHeadwind, isTailwind, isCrosswind, lie, pin){
+  const tgt_adj = target + (pinAdjust[pin] || 0);
+  const d_elev = elevation_delta(elev, lie);
+  const d1 = tgt_adj + d_elev;
+  
+  // 골프존 정밀법 바람 보정 공식 (연속 함수 + 비대칭)
+  // 연구 결과: 맞바람이 뒷바람보다 약 1.6배 더 큰 영향
+  let wind_adj = 0;
+  
+  if (wind_speed > 0 && (isHeadwind || isTailwind)) {
+    // 풍속에 따른 보정 비율 계산 (연속 함수)
+    let basePercent = 0;
+    
+    if (wind_speed <= 3) {
+      // 약바람: 풍속 1당 약 1.33%씩 증가 (0→0%, 3→4%)
+      basePercent = wind_speed * 0.0133;
+    } else if (wind_speed <= 6) {
+      // 중바람: 3 m/s에서 4%, 6 m/s에서 8%로 선형 증가
+      basePercent = 0.04 + (wind_speed - 3) * 0.0133;
+    } else {
+      // 강바람: 6 m/s에서 8%, 8+ m/s에서 15%로 선형 증가
+      basePercent = 0.08 + (wind_speed - 6) * 0.035;
+      // 최대 15%로 제한
+      if (basePercent > 0.15) basePercent = 0.15;
+    }
+    
+    // 70m 이하는 거리 변화 미미 (효과 30%)
+    if (tgt_adj <= 70) {
+      basePercent = basePercent * 0.3;
+    }
+    
+    if (isHeadwind && !isTailwind) {
+      // 맞바람(역풍): 거리의 %만큼 추가 (풀 효과)
+      let distanceAdd = tgt_adj * basePercent;
+      
+      // 옆바람 있으면 효과 75%
+      if (isCrosswind) {
+        distanceAdd *= 0.75;
+      }
+      
+      wind_adj = distanceAdd;
+      
+    } else if (isTailwind && !isHeadwind) {
+      // 뒷바람(순풍): 거리의 %만큼 감소 (맞바람의 약 62.5% 효과)
+      // 연구 결과: 뒷바람은 맞바람보다 효과가 약하지만 체감되는 수준으로 조정
+      let distanceSubtract = tgt_adj * basePercent * 0.625;
+      
+      // 옆바람 있으면 효과를 추가로 감소 (전체의 60%)
+      if (isCrosswind) {
+        distanceSubtract *= 0.6;
+      }
+      
+      wind_adj = -distanceSubtract;
+    }
+  }
+  
+  const d2 = d1 + wind_adj;
+  const beforeLie = d2;
+  const corrected = d2 * (lieMultiplier[lie] || 1.0);
+  const lie_adj = corrected - beforeLie;
+  
+  return {corrected, d_elev, wind_adj, lie_adj, tgt_adj};
+}
+
+function qs(id){ return document.getElementById(id); }
+function fmt(v){ return Number(v).toFixed(1); }
+
+function buildClubInputs(){
+  const container = qs('clubInputs');
+  container.innerHTML = '';
+  clubs.forEach(c=>{
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    label.textContent = c;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = 'ci_' + c;
+    input.placeholder = '비거리(m)';
+    input.step = '1';
+    input.addEventListener('input', ()=> {
+      clubDistances[c] = input.value === '' ? null : parseFloat(input.value);
+    });
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+    container.appendChild(wrap);
+  });
+}
+
+function updateClubDisplay(){
+  const container = qs('clubChips');
+  const hasClubs = clubs.some(c => clubDistances[c] != null);
+  
+  if(!hasClubs){
+    container.innerHTML = '<div class="club-empty">클럽 거리를 입력하면 여기에 표시됩니다</div>';
+    return;
+  }
+  
+  container.innerHTML = '';
+  clubs.forEach(c => {
+    if(clubDistances[c] != null){
+      const chip = document.createElement('div');
+      chip.className = 'club-chip';
+      chip.innerHTML = `<span class="club-chip-name">${c}</span>${clubDistances[c]}m`;
+      container.appendChild(chip);
+    }
+  });
+}
+
+function updateElevUI(){
+  const elev = parseFloat(qs('elev').value);
+  const el = qs('elevValue');
+  el.textContent = (elev>0?'+':'') + fmt(elev) + ' m';
+  if (elev > 0) {
+    el.style.background = 'linear-gradient(180deg, rgba(255,77,77,0.2), rgba(255,77,77,0.1))';
+    el.style.color = '#b00000';
+  } else if (elev < 0) {
+    el.style.background = 'linear-gradient(180deg, rgba(58,134,255,0.2), rgba(58,134,255,0.1))';
+    el.style.color = '#0b4bd6';
+  } else {
+    el.style.background = 'var(--glass)';
+    el.style.color = '#333';
+  }
+}
+
+function updateWindUI(){
+  const wind = parseFloat(qs('wind').value);
+  qs('windValue').textContent = fmt(wind) + ' m/s';
+}
+
+function loadSaved(){
+  try{
+    const raw = localStorage.getItem('golf_clubs_v1');
+    if (raw){
+      const obj = JSON.parse(raw);
+      clubDistances = {...clubDistances, ...obj};
+      clubs.forEach(c=>{
+        const el = qs('ci_' + c);
+        if (el && clubDistances[c] != null) el.value = clubDistances[c];
+      });
+      updateClubDisplay();
+    }
+  }catch(e){ console.warn(e); }
+}
+
+function saveClubsToStorage(){
+  localStorage.setItem('golf_clubs_v1', JSON.stringify(clubDistances));
+}
+
+function computeAndShow(){
+  if (Object.values(clubDistances).every(v => v === null)){
+    alert('먼저 클럽 거리를 입력하세요.');
+    return;
+  }
+  const tgt = parseFloat(qs('tgt').value || 0);
+  if(!tgt || tgt <= 0){
+    alert('목표 거리를 입력하세요.');
+    return;
+  }
+  const elev = parseFloat(qs('elev').value || 0);
+  const wind = parseFloat(qs('wind').value || 0);
+  const isHeadwind = qs('headwind').checked;
+  const isTailwind = qs('tailwind').checked;
+  const isCrosswind = qs('crosswind').checked;
+  const lie = qs('lie').value;
+  const pin = qs('pin').value;
+  const res = compute_corrected_distance(tgt, elev, wind, isHeadwind, isTailwind, isCrosswind, lie, pin);
+  const valid = clubs.filter(c=>clubDistances[c] != null).map(c=>[c, Math.abs(res.corrected - clubDistances[c])]);
+  valid.sort((a,b)=>a[1]-b[1]);
+  const best = valid[0][0];
+  const sum = qs('resultSummary');
+  sum.innerHTML = `
+    <div class="res-line">🎯 <strong>조정 목표 거리</strong>: ${fmt(res.tgt_adj)} m</div>
+    <div class="res-line">⛰ <strong>고저 보정량</strong>: ${fmt(res.d_elev)} m</div>
+    <div class="res-line">💨 <strong>바람 보정량</strong>: ${fmt(res.wind_adj)} m</div>
+    <div class="res-line">🌿 <strong>라이 보정량</strong>: ${fmt(res.lie_adj)} m</div>
+    <div class="res-line">📏 <strong>최종 필요 거리</strong>: ${fmt(res.corrected)} m</div>
+    <hr style="border:none;border-top:1px solid #e0e0e0;margin:12px 0">
+    <div class="res-line" style="font-size:18px;font-weight:700">👉 추천 클럽: <strong style="color:var(--accent);font-size:22px">${best}</strong></div>
+  `;
+  const card = qs('resultCard');
+  card.classList.add('show');
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  buildClubInputs();
+  updateElevUI();
+  updateWindUI();
+  loadSaved();
+  
+  qs('elev').addEventListener('input', ()=>{ updateElevUI(); });
+  qs('wind').addEventListener('input', ()=>{ updateWindUI(); });
+  
+  // 바람 체크박스 상호 배타적 처리 (맞바람과 뒷바람)
+  qs('headwind').addEventListener('change', (e)=>{
+    if(e.target.checked){
+      qs('tailwind').checked = false;
+    }
+  });
+  
+  qs('tailwind').addEventListener('change', (e)=>{
+    if(e.target.checked){
+      qs('headwind').checked = false;
+    }
+  });
+  
+  qs('openClubBtn').addEventListener('click', ()=>{ 
+    qs('clubModal').style.display='flex'; 
+    qs('clubModal').setAttribute('aria-hidden','false'); 
+    loadSaved(); 
+  });
+  
+  qs('closeModal').addEventListener('click', ()=>{ 
+    qs('clubModal').style.display='none';
+    qs('clubModal').setAttribute('aria-hidden','true'); 
+  });
+  
+  qs('modalClose').addEventListener('click', ()=>{ 
+    qs('clubModal').style.display='none';
+    qs('clubModal').setAttribute('aria-hidden','true'); 
+  });
+  
+  qs('saveClubs').addEventListener('click', ()=>{ 
+    clubs.forEach(c=>{
+      const v = qs('ci_' + c).value;
+      clubDistances[c] = v === '' ? null : parseFloat(v);
+    });
+    saveClubsToStorage();
+    updateClubDisplay();
+    alert('클럽 거리가 저장되었습니다.');
+    qs('clubModal').style.display='none';
+    qs('clubModal').setAttribute('aria-hidden','true');
+  });
+  
+  qs('calcBtn').addEventListener('click', computeAndShow);
+});
+
+// Service Worker 등록
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(reg => console.log('Service Worker 등록 성공:', reg.scope))
+      .catch(err => console.log('Service Worker 등록 실패:', err));
+  });
+}
+</script>
+</body>
+</html>
