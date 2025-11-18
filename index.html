@@ -929,21 +929,54 @@ function startVoiceRecognition(){
   recognition.lang = 'ko-KR';
   recognition.continuous = false;
   recognition.interimResults = false;
+  recognition.maxAlternatives = 5; // 여러 후보 받기
   
   // 음성 인식 시작
   qs('voiceStatus').style.display = 'block';
   
   recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    console.log('인식된 텍스트:', transcript);
-    parseVoiceCommand(transcript);
+    // 모든 인식 후보 수집
+    const results = event.results[0];
+    let bestTranscript = results[0].transcript;
+    let bestConfidence = results[0].confidence;
+    
+    console.log('인식 결과:');
+    for(let i = 0; i < results.length; i++){
+      console.log(`  후보 ${i+1}: "${results[i].transcript}" (신뢰도: ${results[i].confidence})`);
+    }
+    
+    // 가장 높은 신뢰도의 결과 사용
+    for(let i = 0; i < results.length; i++){
+      if(results[i].confidence > bestConfidence){
+        bestTranscript = results[i].transcript;
+        bestConfidence = results[i].confidence;
+      }
+    }
+    
+    console.log(`최종 선택: "${bestTranscript}" (신뢰도: ${bestConfidence})`);
+    
+    // 자동 교정 적용
+    const correctedText = autoCorrectVoice(bestTranscript);
+    console.log('교정 후:', correctedText);
+    
+    parseVoiceCommand(correctedText, bestConfidence);
     qs('voiceStatus').style.display = 'none';
   };
   
   recognition.onerror = (event) => {
     console.error('음성 인식 오류:', event.error);
     qs('voiceStatus').style.display = 'none';
-    alert('음성 인식에 실패했습니다. 다시 시도해주세요.');
+    
+    let errorMsg = '음성 인식에 실패했습니다.';
+    if(event.error === 'no-speech'){
+      errorMsg = '음성이 감지되지 않았습니다. 다시 시도해주세요.';
+    } else if(event.error === 'audio-capture'){
+      errorMsg = '마이크를 사용할 수 없습니다. 마이크 권한을 확인해주세요.';
+    } else if(event.error === 'not-allowed'){
+      errorMsg = '마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.';
+    }
+    
+    alert(errorMsg);
   };
   
   recognition.onend = () => {
@@ -953,9 +986,127 @@ function startVoiceRecognition(){
   recognition.start();
 }
 
-// 음성 명령 파싱 함수
-function parseVoiceCommand(text){
-  console.log('파싱 시작:', text);
+// 음성 인식 자동 교정 함수
+function autoCorrectVoice(text){
+  let corrected = text;
+  
+  // 공백 정규화
+  corrected = corrected.replace(/\s+/g, ' ').trim();
+  
+  // 숫자 한글 → 아라비아 숫자 변환
+  const numberMap = {
+    '영': '0', '공': '0',
+    '일': '1', '이': '2', '삼': '3', '사': '4', '오': '5',
+    '육': '6', '칠': '7', '팔': '8', '구': '9'
+  };
+  
+  // "백오십" → "150" 같은 복합 숫자 처리
+  corrected = corrected.replace(/백\s*(\d+)/g, (match, p1) => `1${p1}`);
+  corrected = corrected.replace(/백/g, '100');
+  
+  // 한글 숫자를 아라비아 숫자로
+  for(let [kr, num] of Object.entries(numberMap)){
+    const regex = new RegExp(kr, 'g');
+    corrected = corrected.replace(regex, num);
+  }
+  
+  // 연속된 숫자 합치기: "일 오 공" → "150"
+  corrected = corrected.replace(/(\d)\s+(\d)/g, '$1$2');
+  
+  // 흔한 오인식 교정
+  const corrections = {
+    // 바람 관련
+    '맛바람': '맞바람',
+    '맞 바람': '맞바람',
+    '뒤바람': '뒷바람',
+    '뒷 바람': '뒷바람',
+    '옆 바람': '옆바람',
+    '역 풍': '역풍',
+    '순 풍': '순풍',
+    
+    // 거리 관련
+    '미 터': '미터',
+    'mm': 'm',
+    'M': 'm',
+    
+    // 고저차 관련
+    '오 르막': '오르막',
+    '내 리막': '내리막',
+    '올라가': '오르막',
+    '내려가': '내리막',
+    
+    // 라이 관련
+    '페어': '페어웨이',
+    '페어 웨이': '페어웨이',
+    '러 프': '러프',
+    '벙 커': '벙커',
+    
+    // 핀 관련
+    '앞 핀': '앞핀',
+    '뒷 핀': '뒷핀',
+    '중 핀': '중핀',
+    '중 앙': '중앙'
+  };
+  
+  for(let [wrong, right] of Object.entries(corrections)){
+    const regex = new RegExp(wrong, 'gi');
+    corrected = corrected.replace(regex, right);
+  }
+  
+  // 유사 발음 교정 (레벤슈타인 거리 기반)
+  const keywords = ['맞바람', '뒷바람', '옆바람', '페어웨이', '러프', '벙커', '앞핀', '중핀', '뒷핀', '오르막', '내리막'];
+  const words = corrected.split(' ');
+  
+  for(let i = 0; i < words.length; i++){
+    for(let keyword of keywords){
+      if(similarity(words[i], keyword) > 0.7){
+        words[i] = keyword;
+        break;
+      }
+    }
+  }
+  
+  corrected = words.join(' ');
+  
+  return corrected;
+}
+
+// 문자열 유사도 계산 (0~1)
+function similarity(s1, s2){
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  
+  if(longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+// 레벤슈타인 거리 계산
+function levenshteinDistance(s1, s2){
+  const costs = [];
+  for(let i = 0; i <= s1.length; i++){
+    let lastValue = i;
+    for(let j = 0; j <= s2.length; j++){
+      if(i === 0){
+        costs[j] = j;
+      } else if(j > 0){
+        let newValue = costs[j - 1];
+        if(s1.charAt(i - 1) !== s2.charAt(j - 1)){
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if(i > 0) costs[s2.length] = lastValue;
+  }
+  return costs[s2.length];
+}
+
+// 음성 명령 파싱 함수 (개선)
+function parseVoiceCommand(text, confidence){
+  console.log('파싱 시작:', text, '(신뢰도:', confidence, ')');
   
   let result = {
     distance: null,
@@ -968,64 +1119,93 @@ function parseVoiceCommand(text){
     pin: null
   };
   
-  // 거리 인식 (미터, m)
-  const distanceMatch = text.match(/(\d+)\s*(?:미터|m|M)/);
+  // 거리 인식 (다중 패턴)
+  let distanceMatch = text.match(/(\d+)\s*(?:미터|m|M)/);
+  if(!distanceMatch){
+    // "일오공미터" 같은 패턴도 시도
+    distanceMatch = text.match(/(\d{2,3})\s*(?:미터|m)/);
+  }
   if(distanceMatch){
     result.distance = parseInt(distanceMatch[1]);
   }
   
-  // 고저차 인식 (오르막/내리막만 사용)
-  const elevUpMatch = text.match(/(?:오르막)\s*(\d+)/);
-  const elevDownMatch = text.match(/(?:내리막)\s*(\d+)/);
+  // 고저차 인식 (다중 패턴)
+  const elevUpMatch = text.match(/(?:오르막|올라|플러스)\s*(\d+)/);
+  const elevDownMatch = text.match(/(?:내리막|내려|마이너스)\s*(\d+)/);
+  
   if(elevUpMatch){
     result.elevation = parseInt(elevUpMatch[1]);
   } else if(elevDownMatch){
     result.elevation = -parseInt(elevDownMatch[1]);
   }
   
-  // 바람 방향 인식
-  if(text.includes('맞바람') || text.includes('역풍')){
+  // 바람 방향 인식 (여러 표현)
+  if(text.includes('맞바람') || text.includes('역풍') || text.includes('앞바람')){
     result.headwind = true;
   }
-  if(text.includes('뒷바람') || text.includes('순풍')){
+  if(text.includes('뒷바람') || text.includes('순풍') || text.includes('뒤바람')){
     result.tailwind = true;
   }
-  if(text.includes('옆바람') || text.includes('횡풍')){
+  if(text.includes('옆바람') || text.includes('횡풍') || text.includes('사이드')){
     result.crosswind = true;
   }
   
-  // 풍속 인식
-  const windMatch = text.match(/(?:바람|풍속)\s*(\d+)/);
+  // 풍속 인식 (다중 패턴)
+  let windMatch = text.match(/(?:바람|풍속)\s*(\d+)/);
+  if(!windMatch){
+    // "맞바람 5" 같은 패턴
+    windMatch = text.match(/(?:맞바람|뒷바람|역풍|순풍|옆바람)\s*(\d+)/);
+  }
   if(windMatch){
     result.windSpeed = parseInt(windMatch[1]);
-  } else {
-    // "맞바람 5" 같은 패턴
-    const windMatch2 = text.match(/(?:맞바람|뒷바람|역풍|순풍)\s*(\d+)/);
-    if(windMatch2){
-      result.windSpeed = parseInt(windMatch2[1]);
-    }
   }
   
-  // 라이 인식
-  if(text.includes('페어웨이') || text.includes('페어')){
+  // 라이 인식 (부분 일치 허용)
+  if(text.includes('페어웨이') || text.includes('페어') || text.includes('fairway')){
     result.lie = '페어웨이';
-  } else if(text.includes('러프')){
+  } else if(text.includes('러프') || text.includes('rough')){
     result.lie = '러프';
-  } else if(text.includes('벙커')){
+  } else if(text.includes('벙커') || text.includes('bunker') || text.includes('모래')){
     result.lie = '벙커';
   }
   
-  // 핀 위치 인식 (중핀 추가)
-  if(text.includes('앞핀') || text.includes('앞')){
+  // 핀 위치 인식 (다중 표현)
+  if(text.includes('앞핀') || text.includes('앞') || text.includes('프론트')){
     result.pin = '앞핀';
-  } else if(text.includes('뒷핀') || text.includes('뒤')){
+  } else if(text.includes('뒷핀') || text.includes('뒤') || text.includes('백')){
     result.pin = '뒷핀';
-  } else if(text.includes('중앙') || text.includes('중핀')){
+  } else if(text.includes('중앙') || text.includes('중핀') || text.includes('센터') || text.includes('가운데')){
     result.pin = '중앙';
   }
   
-  // UI에 값 적용
-  applyVoiceResult(result);
+  // 신뢰도가 낮으면 확인 요청
+  if(confidence < 0.7){
+    showConfirmDialog(result, text);
+  } else {
+    applyVoiceResult(result);
+  }
+}
+
+// 확인 다이얼로그 표시
+function showConfirmDialog(result, originalText){
+  const recognizedItems = [];
+  
+  if(result.distance) recognizedItems.push(`거리: ${result.distance}m`);
+  if(result.elevation) recognizedItems.push(`고저차: ${result.elevation > 0 ? '+' : ''}${result.elevation}m`);
+  if(result.windSpeed) recognizedItems.push(`풍속: ${result.windSpeed} m/s`);
+  if(result.headwind) recognizedItems.push(`맞바람`);
+  if(result.tailwind) recognizedItems.push(`뒷바람`);
+  if(result.crosswind) recognizedItems.push(`옆바람`);
+  if(result.lie) recognizedItems.push(`라이: ${result.lie}`);
+  if(result.pin) recognizedItems.push(`핀: ${result.pin}`);
+  
+  const message = `인식된 내용:\n\n${recognizedItems.join('\n')}\n\n원문: "${originalText}"\n\n이대로 적용하시겠습니까?`;
+  
+  if(confirm(message)){
+    applyVoiceResult(result);
+  } else {
+    alert('음성 인식을 취소했습니다. 다시 시도하거나 수동으로 입력해주세요.');
+  }
 }
 
 // 음성 인식 결과를 UI에 적용
